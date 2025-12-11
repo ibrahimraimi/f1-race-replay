@@ -9,6 +9,7 @@ import pickle
 from datetime import timedelta
 
 from src.lib.tyres import get_tyre_compound_int
+from src.lib.time import parse_time_string, format_time
 
 import pandas as pd
 
@@ -384,7 +385,7 @@ def get_race_telemetry(session, session_type='R'):
                 print(f"Failed to attach weather data to frame {i}: {e}")
 
         frame_payload = {
-            "t": float(t),
+            "t": round(t, 3),
             "lap": leader_lap,   # leader's lap at this time
             "drivers": frame_data,
         }
@@ -432,13 +433,19 @@ def get_qualifying_results(session):
         q2_time = row["Q2"]
         q3_time = row["Q3"]
 
+        # Convert pandas Timedelta objects to seconds (or None if NaT)
+        def convert_time_to_seconds(time_val) -> str:
+            if pd.isna(time_val):
+                return None
+            return str(time_val.total_seconds())    
+
         qualifying_data.append({
             "code": driver_code,
             "position": position,
             "color": get_driver_colors(session).get(driver_code, (128,128,128)),
-            "Q1": str(q1_time).split(' ')[-1] if pd.notna(q1_time) else None,
-            "Q2": str(q2_time).split(' ')[-1] if pd.notna(q2_time) else None,
-            "Q3": str(q3_time).split(' ')[-1] if pd.notna(q3_time) else None,
+            "Q1": convert_time_to_seconds(q1_time),
+            "Q2": convert_time_to_seconds(q2_time),
+            "Q3": convert_time_to_seconds(q3_time),
         })
     return qualifying_data
 
@@ -487,7 +494,7 @@ def get_driver_quali_telemetry(session, driver_code: str, quali_segment: str):
     min_speed = telemetry["Speed"].min()
 
     # Build arrays directly from dataframes
-    t_arr = telemetry["Time"].dt.total_seconds().to_numpy() - global_t_min
+    t_arr = telemetry["Time"].dt.total_seconds().to_numpy()
     x_arr = telemetry["X"].to_numpy()
     y_arr = telemetry["Y"].to_numpy()
     dist_arr = telemetry["Distance"].to_numpy()
@@ -498,22 +505,24 @@ def get_driver_quali_telemetry(session, driver_code: str, quali_segment: str):
     brake_arr = telemetry["Brake"].to_numpy()
     drs_arr = telemetry["DRS"].to_numpy()
 
-    # Make the brakes between 0-100 instrad of 0-1
-    brake_arr = brake_arr * 100.0
+    # Recompute time bounds from the (possibly modified) telemetry times
+    global_t_min = float(t_arr.min())
+    global_t_max = float(t_arr.max())
 
-    # Create timeline with endpoint included
+    # Create timeline (relative times starting at zero) and include endpoint
     timeline = np.arange(global_t_min, global_t_max + DT/2, DT) - global_t_min
 
     # Ensure we have at least one sample
     if t_arr.size == 0:
         return {"frames": [], "track_statuses": []}
 
-    # Sort & deduplicate times
-    order = np.argsort(t_arr)
-    t_sorted = t_arr[order]
-    # unique times and indices
+    # Shift telemetry times to same reference as timeline (relative to global_t_min)
+    t_rel = t_arr - global_t_min
+
+    # Sort & deduplicate times using the relative times
+    order = np.argsort(t_rel)
+    t_sorted = t_rel[order]
     t_sorted_unique, unique_idx = np.unique(t_sorted, return_index=True)
-    # map unique indices back to the original ordered arrays
     idx_map = order[unique_idx]
 
     x_sorted = x_arr[idx_map]
@@ -635,7 +644,7 @@ def get_driver_quali_telemetry(session, driver_code: str, quali_segment: str):
                 print(f"Failed to attach weather data to frame {i}: {e}")
 
         frame_payload = {
-            "t": float(t),
+            "t": round(t, 3),
             "telemetry": {
                 "x": float(resampled_data["x"][i]),
                 "y": float(resampled_data["y"][i]),
@@ -652,6 +661,10 @@ def get_driver_quali_telemetry(session, driver_code: str, quali_segment: str):
             frame_payload["weather"] = weather_snapshot
 
         frames.append(frame_payload)
+
+    # Set the time of the final frame to the exact lap time
+            
+    frames[-1]["t"] = round(parse_time_string(str(fastest_lap["LapTime"])), 3)
 
     return {
         "frames": frames,
@@ -756,7 +769,7 @@ def get_quali_telemetry(session, session_type='Q'):
             max_speed = result["max_speed"]
         if result["min_speed"] < min_speed or min_speed == 0.0:
             min_speed = result["min_speed"]
-    
+
     # Save to the compute_data directory
 
     if not os.path.exists("computed_data"):
@@ -769,7 +782,7 @@ def get_quali_telemetry(session, session_type='Q'):
             "max_speed": max_speed,
             "min_speed": min_speed,
         }, f, protocol=pickle.HIGHEST_PROTOCOL)
-        
+
     return {
         "results": qualifying_results,
         "telemetry": telemetry_data,

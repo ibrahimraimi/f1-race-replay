@@ -1,6 +1,7 @@
 import arcade
 from typing import List, Tuple, Optional
 from typing import Sequence, Optional, Tuple
+from src.lib.time import format_time
 import numpy as np
 import os
 
@@ -271,7 +272,7 @@ class QualifyingSegmentSelectorComponent(BaseComponent):
             
             # Draw segment info
             segment_text = f"{segment.upper()}"
-            time_text = data.get('time', 'No Time')
+            time_text = format_time(float(data.get('time', 'No Time')))
             
             arcade.Text(segment_text, left + 30, segment_top - 20, 
                        text_color, 16, bold=True, anchor_x="left", anchor_y="center").draw()

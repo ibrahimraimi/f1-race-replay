@@ -364,14 +364,17 @@ class QualifyingReplay(arcade.Window):
                         arcade.draw_line_strip(brake_pts, arcade.color.RED, 2)
                 except Exception as e:
                     print("Chart draw error (controls):", e)
-
                 
                 # Add lap time to the left of the track map
 
                 current_frame = frames[self.frame_index]
                 current_t = current_frame.get("t", 0.0)
+                    
+                formatted_time = format_time(current_t)
 
-                arcade.Text(f"Lap Time: {format_time(current_t)}", map_left + 10, map_top - 30, arcade.color.ANTI_FLASH_WHITE, 16).draw()
+                arcade.Text(f"Lap Time: {formatted_time}", map_left + 10, map_top - 30, arcade.color.ANTI_FLASH_WHITE, 16).draw()
+
+                arcade.Text(f"Playback Speed: {self.playback_speed:.1f}x", map_left + 10, map_top - 50, arcade.color.ANTI_FLASH_WHITE, 14).draw()
 
                 # Legends
                 legend_x = chart_right - 100
