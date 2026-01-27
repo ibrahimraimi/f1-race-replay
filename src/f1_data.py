@@ -58,7 +58,7 @@ def _process_single_driver(args):
         lap_tel = lap.get_telemetry()
         lap_number = lap.LapNumber
         tyre_compund_as_int = get_tyre_compound_int(lap.Compound)
-        tyre_life = lap.TyreLife
+        tyre_life = lap.TyreLife if pd.notna(lap.TyreLife) else 0
 
         if lap_tel.empty:
             continue
@@ -271,10 +271,10 @@ def get_race_telemetry(session, session_type='R'):
         }
 
         for t_int in np.unique(tyre_resampled):
-                    mask = tyre_resampled == t_int
-                    c_max = np.nanmax(tyre_life_resampled[mask])
-                    if not np.isnan(c_max):
-                        max_tyre_life_map[int(t_int)] = max(max_tyre_life_map.get(int(t_int), 1), int(c_max))
+            mask = tyre_resampled == t_int
+            c_max = np.nanmax(tyre_life_resampled[mask])
+            if not np.isnan(c_max):
+                max_tyre_life_map[int(t_int)] = max(max_tyre_life_map.get(int(t_int), 1), int(c_max))
 
     # 4. Incorporate track status data into the timeline (for safety car, VSC, etc.)
 

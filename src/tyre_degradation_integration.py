@@ -1,6 +1,5 @@
 import pandas as pd
-import numpy as np
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict
 from src.bayesian_tyre_model import BayesianTyreDegradationModel
 
 
@@ -144,11 +143,9 @@ def format_degradation_text(health_data: Dict) -> str:
         return "N/A"
     
     compound = health_data.get("compound", "?")
-    category = health_data.get("category", "")
     laps = health_data.get("laps_on_tyre", 0)
     health = health_data.get("health", 0)
     expected = health_data.get("expected_delta", 0.0)
-    mismatch = health_data.get("mismatch_penalty", 0.0)
     
     base = f"{compound} (L{laps}): {health}%"
     

@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from typing import Dict, Optional, Tuple, List
+from typing import Dict, Optional, Tuple
 from dataclasses import dataclass
 from scipy import stats
 from enum import Enum
@@ -525,7 +525,10 @@ class BayesianTyreDegradationModel:
         
         max_penalty = warmup_penalties.get(tyre.category, 0.2)
         
-        penalty = max_penalty * (1 - (lap_on_tyre - 1) / tyre.warmup_laps)
+        if tyre.warmup_laps > 0:
+            penalty = max_penalty * (1 - (lap_on_tyre - 1) / tyre.warmup_laps)
+        else:
+            penalty = 0.0
         
         return penalty
     

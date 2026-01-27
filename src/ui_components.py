@@ -3,6 +3,7 @@ from typing import List, Literal, Tuple, Optional
 from typing import Sequence, Optional, Tuple
 from src.lib.time import format_time
 import numpy as np
+import pandas as pd
 import os
 from src.tyre_degradation_integration import (
     format_tyre_health_bar, 
@@ -325,7 +326,7 @@ class LeaderboardComponent(BaseComponent):
             text = f"{current_pos}. {code}" if pos.get("rel_dist",0) != 1 else f"{current_pos}. {code}   OUT"
             arcade.Text(text, left_x, top_y, text_color, 16, anchor_x="left", anchor_y="top").draw()
 
-             # Tyre Icons
+            # Tyre Icons
             tyre_val = pos.get("tyre", "?")
             tyre_texture = self._tyre_textures.get(str(tyre_val).upper())
             if tyre_texture:
@@ -343,18 +344,31 @@ class LeaderboardComponent(BaseComponent):
                     if health_data:
                         tyre_health_ratio = health_data['health'] / 100.0
                 else:
-                    max_life = getattr(window, "max_tyre_life", {}).get(int(tyre_val), 30)
-                    tyre_health_ratio = max(0.0, min(1.0, 1.0 - (current_life / max_life)))
+                    max_tyre_life = getattr(window, "max_tyre_life", {})
+                    try:
+                        tyre_key = int(tyre_val)
+                    except (TypeError, ValueError):
+                        max_life = 30
+                    else:
+                        max_life = max_tyre_life.get(tyre_key, 30)
+                    if max_life > 0:
+                        tyre_health_ratio = max(0.0, min(1.0, 1.0 - (current_life / max_life)))
+                    else:
+                        tyre_health_ratio = 1.0
 
                 arcade.draw_texture_rect(rect=rect, texture=tyre_texture, alpha=80)
                 bright_height = icon_size * tyre_health_ratio
                 if bright_height > 0:
-                    window.ctx.scissor = (int(tyre_icon_x - 8), int(tyre_icon_y - 8), 16, int(bright_height))
+                    window.ctx.scissor = (int(tyre_icon_x - 8), int(tyre_icon_y - 8), int(icon_size), int(bright_height))
                     arcade.draw_texture_rect(rect=rect, texture=tyre_texture, alpha=255)
                     window.ctx.scissor = None
                     
+                try:
+                    life_display = str(int(current_life)) if pd.notna(current_life) else "0"
+                except (ValueError, TypeError):
+                    life_display = "0"
                 arcade.Text(
-                    str(int(current_life)),
+                    life_display,
                     tyre_icon_x + 8,
                     tyre_icon_y - 8,
                     arcade.color.WHITE,
@@ -798,8 +812,8 @@ class DriverInfoComponent(BaseComponent):
                     arcade.Text(tyre_text, left_text_x, cursor_y, 
                                arcade.color.LIGHT_GRAY, 10, anchor_y="center").draw()
                     
-            except Exception as e:
-                pass 
+            except (KeyError, AttributeError, TypeError) as e:
+                print(f"Error displaying driver info: {e}")
 
         # Graphs
         thr, brk = driver_pos.get('throttle', 0), driver_pos.get('brake', 0)
