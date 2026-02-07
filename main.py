@@ -103,6 +103,7 @@ def main(year=None, round_number=None, playback_speed=1, session_type='R', visib
       ready_file=ready_file,
       session_info=session_info,
       session=session,
+      enable_telemetry=show_telemetry_viewer
     )
 
 if __name__ == "__main__":

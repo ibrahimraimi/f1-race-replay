@@ -1,6 +1,5 @@
 import sys
 import json
-import socket
 from datetime import datetime
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QWidget, 

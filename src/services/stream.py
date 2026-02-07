@@ -16,6 +16,7 @@ class TelemetryStreamServer:
     self.host = host
     self.port = port
     self.clients = []
+    self.clients_lock = threading.Lock()
     self.server_socket = None
     self.running = False
 
@@ -28,10 +29,16 @@ class TelemetryStreamServer:
   
   def accept_clients(self):
     while self.running:
-      client_socket, addr = self.server_socket.accept()
-      print(f"Client connected from {addr}")
-      self.clients.append(client_socket)
-      threading.Thread(target=self.handle_client, args=(client_socket,), daemon=True).start()
+      try:
+        client_socket, addr = self.server_socket.accept()
+        print(f"Client connected from {addr}")
+        with self.clients_lock:
+          self.clients.append(client_socket)
+        threading.Thread(target=self.handle_client, args=(client_socket,), daemon=True).start()
+      except Exception as e:
+        if self.running:
+          print(f"Error accepting client: {e}")
+        break
 
   def handle_client(self, client_socket):
     try:
@@ -41,25 +48,41 @@ class TelemetryStreamServer:
       print(f"Client connection error: {e}")
     finally:
       client_socket.close()
-      self.clients.remove(client_socket)
+      with self.clients_lock:
+        try:
+          self.clients.remove(client_socket)
+        except ValueError:
+          pass  # Already removed by broadcast() or stop()
 
   def broadcast(self, data):
     message = json.dumps(data).encode('utf-8')
-    for client in self.clients:
+    dead_clients = []
+    
+    with self.clients_lock:
+      clients_copy = list(self.clients)
+    
+    for client in clients_copy:
       try:
         client.sendall(message + b'\n')
       except Exception as e:
         print(f"Error sending to client: {e}")
         client.close()
-        self.clients.remove(client)
+        dead_clients.append(client)
+    
+    if dead_clients:
+      with self.clients_lock:
+        for client in dead_clients:
+          if client in self.clients:
+            self.clients.remove(client)
   
   def stop(self):
     self.running = False
     if self.server_socket:
       self.server_socket.close()
-    for client in self.clients:
-      client.close()
-    self.clients = []
+    with self.clients_lock:
+      for client in list(self.clients):
+        client.close()
+      self.clients = []
 
 class TelemetryStreamClient(QThread):
     

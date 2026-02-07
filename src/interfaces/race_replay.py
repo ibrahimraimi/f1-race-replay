@@ -29,14 +29,24 @@ class F1RaceReplayWindow(arcade.Window):
     def __init__(self, frames, track_statuses, example_lap, drivers, title,
                  playback_speed=1.0, driver_colors=None, circuit_rotation=0.0,
                  left_ui_margin=340, right_ui_margin=260, total_laps=None, visible_hud=True,
-                 session_info=None, session=None):
+                 session_info=None, session=None, enable_telemetry=False):
         # Set resizable to True so the user can adjust mid-sim
         super().__init__(SCREEN_WIDTH, SCREEN_HEIGHT, title, resizable=True)
         self.maximize()
 
-        self.telemetry_stream = TelemetryStreamServer()
-        self.telemetry_stream.start()
-        print("Telemetry stream server started on localhost:9999")
+        self.telemetry_stream = None
+        if enable_telemetry:
+            try:
+                self.telemetry_stream = TelemetryStreamServer()
+                self.telemetry_stream.start()
+                print("Telemetry stream server started on localhost:9999")
+            except OSError as e:
+                print(f"Failed to start telemetry server: {e}")
+                print("Continuing without telemetry streaming...")
+                self.telemetry_stream = None
+            except Exception as e:
+                print(f"Error starting telemetry server: {e}")
+                self.telemetry_stream = None
 
         self.frames = frames
         self.track_statuses = track_statuses
@@ -205,61 +215,6 @@ class F1RaceReplayWindow(arcade.Window):
         self.leaderboard_rects = []  # list of tuples: (code, left, bottom, right, top)
         # store previous leaderboard order for up/down arrows
         self.last_leaderboard_order = None
-        
-        # Broadcast initial telemetry state
-        self._broadcast_telemetry_state()
-
-    def _broadcast_telemetry_state(self):
-        """Broadcast current telemetry state to connected clients."""
-        if not hasattr(self, 'telemetry_stream') or not self.telemetry_stream:
-            return
-            
-        current_frame = self.frames[min(int(self.frame_index), len(self.frames) - 1)] if self.frames else None
-        
-        # Get current track status
-        current_track_status = "GREEN"
-        if current_frame:
-            current_time = current_frame["t"]
-            for status in self.track_statuses:
-                if (current_time >= status["start_time"] and 
-                    (status["end_time"] is None or current_time <= status["end_time"])):
-                    current_track_status = status["status"]
-                    
-        # Calculate leader info
-        leader_code = ""
-        leader_lap = 1
-        if current_frame and "drivers" in current_frame:
-            driver_progress = {}
-            for code, pos in current_frame["drivers"].items():
-                x, y = pos["x"], pos["y"]
-                progress_m = self._project_to_reference(x, y)
-                driver_progress[code] = progress_m
-                
-            if driver_progress:
-                leader_code = max(driver_progress.keys(), key=lambda k: driver_progress[k])
-                leader_lap = current_frame["drivers"].get(leader_code, {}).get("lap", 1)
-        
-        # Format time
-        t = current_frame["t"] if current_frame else 0
-        hours = int(t // 3600)
-        minutes = int((t % 3600) // 60)
-        seconds = int(t % 60)
-        time_str = f"{hours:02}:{minutes:02}:{seconds:02}"
-        
-        self.telemetry_stream.broadcast({
-            "frame_index": int(self.frame_index),
-            "frame": current_frame,
-            "track_status": current_track_status,
-            "playback_speed": self.playback_speed,
-            "is_paused": self.paused,
-            "total_frames": self.n_frames,
-            "session_data": {
-                "time": time_str,
-                "lap": leader_lap,
-                "leader": leader_code,
-                "total_laps": self.total_laps
-            }
-        })
         
         # Broadcast initial telemetry state
         self._broadcast_telemetry_state()
